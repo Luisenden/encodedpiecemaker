@@ -10,6 +10,63 @@ using DataFrames
 
 const ghzs = [ghz(n) for n in 1:7] # make const in order to not build new every time
 
+function bicycle_generators(p::Integer; SA=[0], SB=[0,2], one_based::Bool=false)
+    p ≥ 1 || throw(ArgumentError("p must be ≥ 1"))
+    # Normalize masks to 0..p-1 and deduplicate
+    SA = unique(mod.(SA, p))
+    SB = unique(mod.(SB, p))
+
+    Xgen = Vector{Vector{Int}}(undef, p)
+    Zgen = Vector{Vector{Int}}(undef, p)
+
+    for i in 0:p-1
+        # X_i
+        L_A = [mod(i + s, p) for s in SA]
+        R_B = [p + mod(i + t, p) for t in SB]
+        Xgen[i+1] = vcat(L_A, R_B)
+
+        # Z_i
+        L_B = [mod(i + t, p) for t in SB]
+        R_A = [p + mod(i + s, p) for s in SA]
+        Zgen[i+1] = vcat(L_B, R_A)
+    end
+
+    if one_based
+        Xgen = [x .+ 1 for x in Xgen]
+        Zgen = [z .+ 1 for z in Zgen]
+    end
+
+    return Xgen, Zgen
+end
+
+function module_counts(gens::Vector{<:AbstractVector{<:Integer}};
+                       n::Union{Nothing,Int}=nothing,
+                       one_based::Bool=false,
+                       unique_within::Bool=true)
+    isempty(gens) && throw(ArgumentError("gens must be non-empty"))
+
+    # Infer n if needed
+    if n === nothing
+        maxidx = maximum(maximum(g) for g in gens if !isempty(g))
+        n = one_based ? maxidx : maxidx + 1
+    end
+
+    counts = zeros(Int, n)
+    for g in gens
+        items = unique_within ? unique(g) : g
+        for idx in items
+            if one_based
+                1 ≤ idx ≤ n || throw(ArgumentError("index $idx out of 1..$n"))
+                counts[idx] += 1
+            else
+                0 ≤ idx ≤ n-1 || throw(ArgumentError("index $idx out of 0..$(n-1)"))
+                counts[idx + 1] += 1
+            end
+        end
+    end
+    return counts
+end
+
 function fusion(piecemaker_slot::RegRef, client_slot::RegRef)
     noisyCNOT = NonInstantGate(CNOT, 0.2) # operation time of CNOT gate
     apply!((piecemaker_slot, client_slot), noisyCNOT)
@@ -154,9 +211,20 @@ function prepare_sim(n)
 end
 
 # main 
+
 logs = Tuple[]
 n = 20 # number of clients
 runtime = 100
+
+Xgen, Zgen = bicycle_generators(10; SA=[0], SB=[0,2], one_based=true)
+modcounts_X = module_counts(Xgen; one_based=true)
+modcounts_Z = module_counts(Zgen; one_based=true)
+
+@info "Bicycle code generators for n=$(n):"
+@info "X generators: $(Xgen)"
+@info "Z generators: $(Zgen)"
+@info "Module counts for X generators: $(modcounts_X)"
+@info "Module counts for Z generators: $(modcounts_Z)"
 
 sim = prepare_sim(n)
 run(sim, runtime) # run for 100000 time units
