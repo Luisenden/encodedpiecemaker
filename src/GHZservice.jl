@@ -193,7 +193,7 @@ function prepare_sim(n)
     noise_model = Depolarization(T_link) # noise model applied to the memory qubits
 
     # Link success probability
-    link_success_prob = 0.0001
+    link_success_prob = 1.0 #0.0001
 
     # Network setup
     switch = Register([Qubit() for _ in 1:(n+1)], [states_representation for _ in 1:(n+1)], [noise_model for _ in 1:(n+1)]) # storage qubits at the switch, first qubit is the "piecemaker" qubit
@@ -224,7 +224,7 @@ end
 
 logs = Tuple[]
 n = 20 # number of clients
-runtime = 50
+runtime = 5
 
 Xgen, Zgen = bicycle_generators(10; SA=[0], SB=[0,2], one_based=true)
 modcounts_X = module_counts(Xgen; one_based=true)
